@@ -1,32 +1,12 @@
 from django.dispatch import receiver
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
-from django import forms
-from pretix.base.signals import register_ticket_outputs
-from pretix.control.signals import nav_organizer, nav_event
+from pretix.control.signals import nav_organizer
 from pretix.presale.signals import html_head
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
 import logging
 import os
 
 logger = logging.getLogger(__name__)
-
-
-def register_custom_fonts(event):
-    from .models import CustomFont
-    fonts = CustomFont.objects.filter(organizer=event.organizer)
-    for font in fonts:
-        try:
-            if font.name not in pdfmetrics.getRegisteredFontNames():
-                # Ensure the file exists on disk
-                if os.path.exists(font.font_file.path):
-                    pdfmetrics.registerFont(TTFont(font.name, font.font_file.path))
-                    logger.info(f"Registered custom font: {font.name}")
-                else:
-                    logger.error(f"Font file not found: {font.font_file.path}")
-        except Exception as e:
-            logger.error(f"Could not register font {font.name}: {e}")
 
 
 @receiver(nav_organizer, dispatch_uid="pretix_custom_fonts_nav")
@@ -48,83 +28,6 @@ def control_nav_organizer(sender, request, **kwargs):
     ]
 
 
-@receiver(nav_event, dispatch_uid="pretix_custom_fonts_nav_event")
-def control_nav_event(sender, request, **kwargs):
-    organizer = request.organizer
-    event = request.event
-    url = reverse('plugins:pretix_custom_fonts:event_settings', kwargs={
-        'organizer': organizer.slug,
-        'event': event.slug,
-    })
-    if not request.user.has_event_permission(organizer, event, 'can_change_event_settings', request=request):
-        return []
-
-    return [
-        {
-            'label': _('Custom Font'),
-            'url': url,
-            'active': (request.resolver_match.url_name == 'plugins:pretix_custom_fonts:event_settings'),
-            'icon': 'font',
-            'group': _('Settings'),
-        }
-    ]
-
-@receiver(register_ticket_outputs, dispatch_uid="pretix_custom_fonts_register_fonts")
-def register_fonts_on_ticket_output(sender, **kwargs):
-    # sender is the event
-    register_custom_fonts(sender)
-
-    # In dieser Pretix-Version (standalone:stable) existiert der Hook 'event_settings_widget_kwargs'
-    # nicht zuverlässig. Deshalb fügen wir unsere Schriften NICHT in das globale
-    # 'font_family'-Feld unter Shop-Design ein. Stattdessen nutzt das Plugin seine
-    # eigene Einstellungsseite.
-
-    # Wir setzen die gewählte Schriftart in den Settings für das Ticket-Rendering,
-    # falls eine ausgewählt wurde.
-    font_id = sender.settings.get('custom_font_id')
-    if font_id:
-        from .models import CustomFont
-        try:
-            font = CustomFont.objects.get(pk=font_id)
-            # Wir setzen die Font-Family für Ticket-Outputs, die dieses Setting respektieren
-            sender.settings.set('ticket_output_pdf_font_family', font.name)
-            logger.info(f"Set ticket font family to: {font.name}")
-        except CustomFont.DoesNotExist:
-            pass
-
-    # Inkompatible Hooks dokumentieren:
-    # layout_text_render existiert in dieser Pretix-Version nicht.
-    # Wir verlassen uns stattdessen auf die Registrierung via register_ticket_outputs.
-
-    # Invoice Font Handling
-    invoice_font_id = sender.settings.get('custom_font_invoice_id')
-    if invoice_font_id:
-        from .models import CustomFont
-        try:
-            font = CustomFont.objects.get(pk=invoice_font_id)
-            sender.settings.set('invoice_renderer_pdf_fontfamily', font.name)
-            logger.info(f"Set invoice font family to: {font.name}")
-        except CustomFont.DoesNotExist:
-            pass
-
-    # Shop Design Font Handling
-    shop_font_id = sender.settings.get('custom_font_shop_id')
-    if shop_font_id:
-        from .models import CustomFont
-        try:
-            font = CustomFont.objects.get(pk=shop_font_id)
-            # Wir setzen die 'font_family' Einstellung von Pretix auf den Namen unserer Schrift
-            # Das sorgt dafür, dass Pretix im SASS die Variable $font-family auf diesen Namen setzt.
-            # In neueren Pretix-Versionen ist dies der bevorzugte Weg, da das SASS-Signal 
-            # (sass_variables) in einigen Umgebungen (z.B. standalone:stable) Probleme bereiten kann.
-            sender.settings.set('font_family', font.name)
-        except CustomFont.DoesNotExist:
-            pass
-
-    return []
-
-
-
 @receiver(html_head, dispatch_uid="pretix_custom_fonts_html_head")
 def html_head_handler(sender, request, **kwargs):
     # Wir binden die @font-face Definitionen im Frontend ein, damit die Custom Fonts gerendert werden
@@ -144,25 +47,42 @@ def html_head_handler(sender, request, **kwargs):
         }}
         """
 
-    # Falls eine Shop-Schrift gewählt wurde, wenden wir sie hier direkt per CSS an,
-    # falls die SASS-Kompilierung das 'font_family' Setting nicht sofort übernimmt
-    # oder sass_variables nicht verfügbar ist.
-    shop_font_id = sender.settings.get('custom_font_shop_id')
-    if shop_font_id:
-        try:
-            shop_font = CustomFont.objects.get(pk=shop_font_id)
-            css += f"""
-            body {{
-                font-family: '{shop_font.name}', sans-serif !important;
-            }}
-            """
-        except CustomFont.DoesNotExist:
-            pass
-
     css += "</style>"
     return css
 
 
-# Der Hook 'sass_variables' wird entfernt, da er in pretix/standalone:stable
-# einen ImportError verursachen kann. Wir setzen stattdessen auf das 'font_family'
-# Setting und direktes CSS via 'html_head'.
+def register_fonts(sender, **kwargs):
+    # Dieser Receiver registriert Fonts für pretix.plugins.ticketoutputpdf
+    from .models import CustomFont
+    # Wir laden hier alle Fonts des Organizers für das Event
+    # Hinweis: Da dieser Signal-Receiver global für das Event aufgerufen wird,
+    # geben wir die für diesen Organizer verfügbaren Fonts zurück.
+    if not hasattr(sender, 'organizer'):
+        return {}
+
+    fonts = CustomFont.objects.filter(organizer=sender.organizer)
+    ret = {}
+    for font in fonts:
+        path = font.font_file.path
+        # Pretix erwartet ein Mapping von Font-Namen auf Varianten.
+        # Da wir aktuell nur eine Datei pro Font-Eintrag unterstützen,
+        # registrieren wir diese als 'regular'.
+        ret[font.name] = {
+            'regular': {
+                'truetype': path,
+                # 'woff', 'woff2' könnten hier ebenfalls stehen, falls vorhanden.
+                # Pretix nutzt 'truetype' für PDF-Generierung (ReportLab).
+                'sample': path,
+            }
+        }
+    return ret
+
+
+# Wir versuchen den Import des Signals. Falls das Ticket-Output-Plugin nicht aktiv ist,
+# wird das Signal nicht gefunden.
+try:
+    from pretix.plugins.ticketoutputpdf.signals import register_fonts as register_fonts_signal
+    register_fonts = receiver(register_fonts_signal, dispatch_uid="pretix_custom_fonts_register_fonts")(register_fonts)
+except ImportError:
+    # Falls das Plugin nicht installiert ist, machen wir nichts.
+    pass
