@@ -2,7 +2,7 @@ from django.dispatch import receiver
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from pretix.base.signals import register_payment_providers, register_ticket_outputs
-from pretix.control.signals import nav_organizer
+from pretix.control.signals import nav_organizer, nav_event
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import logging
@@ -23,6 +23,29 @@ def control_nav_organizer(sender, request, organizer, **kwargs):
             'url': url,
             'active': (request.resolver_match.url_name.startswith('plugins:pretix_custom_fonts:')),
             'icon': 'font',
+            'parent': reverse('control:organizer.settings', kwargs={
+                'organizer': organizer.slug,
+            }),
+        }
+    ]
+
+
+@receiver(nav_event, dispatch_uid="pretix_custom_fonts_nav_event")
+def control_nav_event(sender, request, organizer, event, **kwargs):
+    url = reverse('plugins:pretix_custom_fonts:event_settings', kwargs={
+        'organizer': organizer.slug,
+        'event': event.slug,
+    })
+    if not request.user.has_event_permission(organizer, event, 'can_change_event_settings', request=request):
+        return []
+
+    return [
+        {
+            'label': _('Custom Font'),
+            'url': url,
+            'active': (request.resolver_match.url_name == 'plugins:pretix_custom_fonts:event_settings'),
+            'icon': 'font',
+            'group': _('Settings'),
         }
     ]
 
@@ -52,4 +75,19 @@ def register_custom_fonts(event):
 def register_fonts_on_ticket_output(sender, **kwargs):
     # sender ist hier das Event
     register_custom_fonts(sender)
+    
+    # Wir setzen die gewählte Schriftart in den Settings für das Ticket-Rendering,
+    # falls eine ausgewählt wurde.
+    font_id = sender.settings.get('custom_font_id')
+    if font_id:
+        from .models import CustomFont
+        try:
+            font = CustomFont.objects.get(pk=font_id)
+            # Viele Ticket-Plugins nutzen 'ticket_output_pdf_font_family'
+            # oder ähnliche Settings. Wir setzen sie hier temporär für den Render-Prozess.
+            sender.settings.set('ticket_output_pdf_font_family', font.name)
+            logger.info(f"Set ticket font family to: {font.name}")
+        except CustomFont.DoesNotExist:
+            pass
+
     return []
