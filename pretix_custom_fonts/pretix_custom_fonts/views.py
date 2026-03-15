@@ -50,8 +50,12 @@ class FontCreateView(OrganizerPermissionMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.organizer = self.organizer
-        messages.success(self.request, _('The font has been uploaded.'))
-        return super().form_valid(form)
+        resp = super().form_valid(form)
+        if not self.object.is_pdf_compatible:
+            messages.warning(self.request, _('This font was uploaded successfully for web usage, but it cannot be used for PDF rendering (PostScript outlines detected). It will be available for CSS themes but not for invoices.'))
+        else:
+            messages.success(self.request, _('The font has been uploaded.'))
+        return resp
 
 
 class FontDeleteView(OrganizerPermissionMixin, DeleteView):

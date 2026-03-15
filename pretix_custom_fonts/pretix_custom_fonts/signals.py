@@ -88,9 +88,9 @@ def handle_register_fonts(sender, **kwargs):
         # Each font family can have variants: regular, bold, italic, bolditalic
         # Use relative path for truetype - Pretix will resolve it via staticfiles finders.
         # This ensures it passes the safety check as it's within the static hierarchy.
-        font_data = {
-            'truetype': rel_path if materialized else source_path,
-        }
+        font_data = {}
+        if font.is_pdf_compatible:
+            font_data['truetype'] = rel_path if materialized else source_path
 
         # Bridge for ManifestStaticFilesStorage:
         # To avoid the 'Missing staticfiles manifest entry' error in theme.css,

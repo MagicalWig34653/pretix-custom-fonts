@@ -43,3 +43,18 @@ class CustomFont(models.Model):
     @property
     def extension(self):
         return os.path.splitext(self.font_file.name)[1].lower()
+
+    @property
+    def is_pdf_compatible(self):
+        # ReportLab (used for PDF generation) cannot load OTF fonts with PostScript/CFF outlines
+        # as TrueType fonts. These fonts start with 'OTTO' in the header.
+        # TrueType fonts (even if named .otf) start with \x00\x01\x00\x00 or 'true'.
+        if not self.font_file:
+            return False
+        try:
+            with self.font_file.open('rb') as f:
+                header = f.read(4)
+                return header != b'OTTO'
+        except Exception:
+            # Fallback for errors: assume it might not be compatible if we can't read it
+            return False
