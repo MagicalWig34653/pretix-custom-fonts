@@ -1,0 +1,3 @@
+include MANIFEST.in
+recursive-include pretix_custom_fonts/templates *.html *.txt
+recursive-include pretix_custom_fonts/static *

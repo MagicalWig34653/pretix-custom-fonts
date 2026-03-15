@@ -21,7 +21,7 @@ class OrganizerViewMixin:
 
 class FontListView(OrganizerViewMixin, ListView):
     model = CustomFont
-    template_name = 'pretix_custom_fonts/font_list.html'
+    template_name = 'pretix_custom_fonts/list.html'
     context_object_name = 'fonts'
 
     def get_queryset(self):
@@ -31,7 +31,7 @@ class FontListView(OrganizerViewMixin, ListView):
 class FontCreateView(OrganizerViewMixin, CreateView):
     model = CustomFont
     form_class = FontUploadForm
-    template_name = 'pretix_custom_fonts/font_form.html'
+    template_name = 'pretix_custom_fonts/form.html'
 
     def get_success_url(self):
         return reverse('plugins:pretix_custom_fonts:list', kwargs={
@@ -46,7 +46,7 @@ class FontCreateView(OrganizerViewMixin, CreateView):
 
 class FontDeleteView(OrganizerViewMixin, DeleteView):
     model = CustomFont
-    template_name = 'pretix_custom_fonts/font_delete.html'
+    template_name = 'pretix_custom_fonts/delete.html'
 
     def get_queryset(self):
         return CustomFont.objects.filter(organizer=self.organizer)
