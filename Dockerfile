@@ -5,7 +5,7 @@ FROM pretix/standalone:stable
 
 # We copy the plugin code into the container
 # Assuming the Dockerfile is in the project root (above pretix_custom_fonts directory)
-COPY . /pretix-custom-fonts
+COPY ./pretix_custom_fonts /pretix-custom-fonts
 
 # Install the plugin
 RUN pip3 install --no-cache-dir /pretix-custom-fonts
