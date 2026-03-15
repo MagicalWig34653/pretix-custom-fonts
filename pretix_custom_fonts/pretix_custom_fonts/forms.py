@@ -8,7 +8,7 @@ from .models import CustomFont
 class FontUploadForm(forms.ModelForm):
     class Meta:
         model = CustomFont
-        fields = ['name', 'font_file']
+        fields = ['name', 'style', 'font_file']
 
     def clean_name(self):
         name = self.cleaned_data.get('name')

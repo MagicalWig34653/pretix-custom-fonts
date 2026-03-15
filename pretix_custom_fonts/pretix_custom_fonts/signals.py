@@ -44,6 +44,8 @@ def html_head_handler(sender, request, **kwargs):
         @font-face {{
             font-family: '{font.name}';
             src: url('{font_url}');
+            font-weight: {'bold' if 'bold' in font.style else 'normal'};
+            font-style: {'italic' if 'italic' in font.style else 'normal'};
         }}
         """
 
@@ -63,19 +65,24 @@ def register_fonts(sender, **kwargs):
     fonts = CustomFont.objects.filter(organizer=sender.organizer)
     ret = {}
     for font in fonts:
+        if font.name not in ret:
+            ret[font.name] = {}
+        
         path = font.font_file.path
         # Pretix erwartet ein Mapping von Font-Namen auf Varianten.
-        # Da wir aktuell nur eine Datei pro Font-Eintrag unterstützen,
-        # registrieren wir diese als 'regular'.
-        ret[font.name] = {
-            'regular': {
-                'truetype': path,
-                # 'woff', 'woff2' könnten hier ebenfalls stehen, falls vorhanden.
-                # Pretix nutzt 'truetype' für PDF-Generierung (ReportLab).
-                'sample': path,
-            }
+        # Ein Font kann Varianten wie 'regular', 'bold', 'italic', 'bolditalic' haben.
+        ret[font.name][font.style] = {
+            'truetype': path,
+            # 'woff', 'woff2' könnten hier ebenfalls stehen, falls vorhanden.
+            # Pretix nutzt 'truetype' für PDF-Generierung (ReportLab).
         }
-    return ret
+        # 'sample' sollte auf der Ebene des Font-Namens liegen, nicht pro Variante
+        # Wir nehmen einfach die Datei der ersten Variante als Sample.
+        if 'sample' not in ret[font.name]:
+            ret[font.name]['sample'] = path
+
+    # Wir filtern Fonts heraus, die kein 'regular' haben, da Pretix das meist voraussetzt
+    return {k: v for k, v in ret.items() if 'regular' in v}
 
 
 # Wir versuchen den Import des Signals. Falls das Ticket-Output-Plugin nicht aktiv ist,

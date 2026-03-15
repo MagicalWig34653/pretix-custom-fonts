@@ -16,8 +16,20 @@ class CustomFont(models.Model):
     )
     name = models.CharField(
         max_length=255,
-        verbose_name=_('Font name'),
-        help_text=_('A descriptive name for this font.')
+        verbose_name=_('Family name'),
+        help_text=_('A name for the font family, e.g. "Roboto".')
+    )
+    STYLE_CHOICES = (
+        ('regular', _('Regular')),
+        ('bold', _('Bold')),
+        ('italic', _('Italic')),
+        ('bolditalic', _('Bold Italic')),
+    )
+    style = models.CharField(
+        max_length=20,
+        choices=STYLE_CHOICES,
+        default='regular',
+        verbose_name=_('Font style')
     )
     font_file = models.FileField(
         upload_to=font_path,
@@ -26,7 +38,7 @@ class CustomFont(models.Model):
     )
 
     def __str__(self):
-        return self.name
+        return f"{self.name} ({self.get_style_display()})"
 
     @property
     def extension(self):
