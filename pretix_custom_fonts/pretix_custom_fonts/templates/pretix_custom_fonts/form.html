@@ -2,7 +2,15 @@
 {% load i18n %}
 {% load bootstrap3 %}
 {% block inner %}
-    <h1>{% trans "Upload new font" %}</h1>
+    <h1>
+        {% if object.pk %}
+            {% blocktrans with name=object.name style=object.get_style_display %}
+                Edit font: {{ name }} ({{ style }})
+            {% endblocktrans %}
+        {% else %}
+            {% trans "Upload new font" %}
+        {% endif %}
+    </h1>
     <form action="" method="post" enctype="multipart/form-data" class="form-horizontal">
         {% csrf_token %}
         {% bootstrap_form form layout="horizontal" %}

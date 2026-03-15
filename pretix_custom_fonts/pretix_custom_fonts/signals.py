@@ -118,15 +118,31 @@ def handle_register_fonts(sender, **kwargs):
                 font_data['woff2'] = url
             except:
                 pass
-            
+
+        # Map the extended style to Pretix-compatible slots
+        # We store all variants in the temporary 'ret' dictionary under their original style name first
+        if font.name not in ret:
+            ret[font.name] = {}
         ret[font.name][font.style] = font_data
 
-    # Finalize the dictionary by adding 'sample' and filtering incomplete families
+    # Finalize the dictionary by mapping extended styles to Pretix slots and filtering
     final_ret = {}
+    
+    # Use priority rules for mapping extended styles to Pretix slots from the model
+    PRIORITIES = CustomFont.PRETIX_STYLE_MAP
+
     for font_name, variants in ret.items():
+        mapped_variants = {}
+        
+        for pretix_slot, style_list in PRIORITIES.items():
+            for style in style_list:
+                if style in variants:
+                    mapped_variants[pretix_slot] = variants[style]
+                    break
+        
         # Pretix requires at least the 'regular' variant
-        if 'regular' in variants:
-            final_ret[font_name] = variants
+        if 'regular' in mapped_variants:
+            final_ret[font_name] = mapped_variants
             final_ret[font_name]['sample'] = mark_safe(
                 'The quick brown fox jumps over the lazy dog.<br>'
                 'Franz jagt im komplett verwahrlosten Taxi quer durch Bayern.'

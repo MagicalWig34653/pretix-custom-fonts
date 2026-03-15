@@ -21,9 +21,16 @@ class CustomFont(models.Model):
     )
     STYLE_CHOICES = (
         ('regular', _('Regular')),
-        ('bold', _('Bold')),
         ('italic', _('Italic')),
+        ('bold', _('Bold')),
         ('bolditalic', _('Bold Italic')),
+        ('thin', _('Thin')),
+        ('thinitalic', _('Thin Italic')),
+        ('extralight', _('Extra Light')),
+        ('light', _('Light')),
+        ('medium', _('Medium')),
+        ('italicbold', _('Italic Bold')),
+        ('black', _('Black')),
     )
     style = models.CharField(
         max_length=20,
@@ -36,6 +43,23 @@ class CustomFont(models.Model):
         verbose_name=_('Font file'),
         help_text=_('Only TTF and OTF files are supported.')
     )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['organizer', 'name', 'style'],
+                name='unique_font_per_organizer_name_style'
+            )
+        ]
+
+    # Priority rules for mapping extended styles to Pretix slots
+    # The first style in the list that exists for a family will be used for that slot.
+    PRETIX_STYLE_MAP = {
+        'regular': ['regular', 'medium', 'light', 'extralight', 'thin'],
+        'bold': ['bold', 'black', 'medium'],
+        'italic': ['italic', 'thinitalic'],
+        'bolditalic': ['bolditalic', 'italicbold'],
+    }
 
     def __str__(self):
         return f"{self.name} ({self.get_style_display()})"

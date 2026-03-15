@@ -13,32 +13,71 @@
         <table class="table table-hover">
             <thead>
             <tr>
-                <th>{% trans "Name" %}</th>
+                <th>{% trans "Font family / Style" %}</th>
                 <th>{% trans "File" %}</th>
                 <th>{% trans "PDF compatible" %}</th>
                 <th class="action-column"></th>
             </tr>
             </thead>
             <tbody>
-            {% for f in fonts %}
-                <tr>
-                    <td><strong>{{ f.name }}</strong></td>
-                    <td>{{ f.font_file.name }}</td>
-                    <td>
-                        {% if f.is_pdf_compatible %}
-                            <span class="label label-success">{% trans "Yes" %}</span>
-                        {% else %}
-                            <span class="label label-warning" title="{% trans 'This font is not compatible with PDF generation (PostScript outlines).' %}">{% trans "No" %}</span>
-                        {% endif %}
+            {% for family in families_data %}
+                <tr class="info">
+                    <td colspan="3">
+                        <strong>{{ family.name }}</strong>
                     </td>
                     <td class="text-right">
-                        <a href="{% url 'plugins:pretix_custom_fonts:delete' organizer=organizer.slug pk=f.pk %}"
-                           class="btn btn-danger btn-sm"><i class="fa fa-trash"></i></a>
+                        {% if family.mapping.regular %}
+                            <span class="label label-primary" title="{% trans 'This family is correctly configured and ready to use.' %}">
+                                <i class="fa fa-check"></i> {% trans "Active" %}
+                            </span>
+                        {% else %}
+                            <span class="label label-danger" title="{% trans 'A regular style is required for this family to be usable.' %}">
+                                <i class="fa fa-times"></i> {% trans "Incomplete" %}
+                            </span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% for f in family.fonts %}
+                    <tr>
+                        <td style="padding-left: 30px;">
+                            {{ f.get_style_display }}
+                            {% for slot, mapped_font in family.mapping.items %}
+                                {% if mapped_font.pk == f.pk %}
+                                    <span class="label label-info" title="{% trans 'This style is used for the Pretix slot:' %} {{ slot }}">
+                                        {{ slot }}
+                                    </span>
+                                {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td>{{ f.font_file.name }}</td>
+                        <td>
+                            {% if f.is_pdf_compatible %}
+                                <span class="label label-success">{% trans "Yes" %}</span>
+                            {% else %}
+                                <span class="label label-warning" title="{% trans 'This font is not compatible with PDF generation (PostScript outlines).' %}">{% trans "No" %}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-right">
+                            <a href="{% url 'plugins:pretix_custom_fonts:edit' organizer=organizer.slug pk=f.pk %}"
+                               class="btn btn-default btn-sm"><i class="fa fa-edit"></i></a>
+                            <a href="{% url 'plugins:pretix_custom_fonts:delete' organizer=organizer.slug pk=f.pk %}"
+                               class="btn btn-danger btn-sm"><i class="fa fa-trash"></i></a>
+                        </td>
+                    </tr>
+                {% endfor %}
+                <tr class="active">
+                    <td colspan="4" class="text-muted small">
+                        <strong>{% trans "Pretix slot mapping:" %}</strong>
+                        {% for slot, mapped_font in family.mapping.items %}
+                            <code>{{ slot }}</code>: {{ mapped_font.get_style_display }}{% if not forloop.last %}, {% endif %}
+                        {% empty %}
+                            <em>{% trans "None" %}</em>
+                        {% endfor %}
                     </td>
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="3" class="text-center"><em>{% trans "No custom fonts uploaded yet." %}</em></td>
+                    <td colspan="4" class="text-center"><em>{% trans "No custom fonts uploaded yet." %}</em></td>
                 </tr>
             {% endfor %}
             </tbody>

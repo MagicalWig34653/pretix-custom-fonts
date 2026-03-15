@@ -10,6 +10,25 @@ class FontUploadForm(forms.ModelForm):
         model = CustomFont
         fields = ['name', 'style', 'font_file']
 
+    def __init__(self, *args, **kwargs):
+        self.organizer = kwargs.pop('organizer', None)
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            self.fields['font_file'].required = False
+
+    def clean(self):
+        cleaned_data = super().clean()
+        name = cleaned_data.get('name')
+        style = cleaned_data.get('style')
+
+        if name and style and self.organizer:
+            qs = CustomFont.objects.filter(organizer=self.organizer, name=name, style=style)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise ValidationError(_("A font with this family name and style already exists for this organizer."))
+        return cleaned_data
+
     def clean_name(self):
         name = self.cleaned_data.get('name')
         if name:
