@@ -14,7 +14,7 @@ class FontListView(OrganizerDetailViewMixin, ListView):
     context_object_name = 'fonts'
 
     def get_queryset(self):
-        return CustomFont.objects.filter(organizer=self.request.organizer)
+        return CustomFont.objects.filter(organizer=self.organizer)
 
 
 class FontCreateView(OrganizerDetailViewMixin, CreateView):
@@ -24,11 +24,11 @@ class FontCreateView(OrganizerDetailViewMixin, CreateView):
 
     def get_success_url(self):
         return reverse('plugins:pretix_custom_fonts:list', kwargs={
-            'organizer': self.request.organizer.slug,
+            'organizer': self.organizer.slug,
         })
 
     def form_valid(self, form):
-        form.instance.organizer = self.request.organizer
+        form.instance.organizer = self.organizer
         messages.success(self.request, _('The font has been uploaded.'))
         return super().form_valid(form)
 
@@ -38,11 +38,11 @@ class FontDeleteView(OrganizerDetailViewMixin, DeleteView):
     template_name = 'pretix_custom_fonts/font_delete.html'
 
     def get_queryset(self):
-        return CustomFont.objects.filter(organizer=self.request.organizer)
+        return CustomFont.objects.filter(organizer=self.organizer)
 
     def get_success_url(self):
         return reverse('plugins:pretix_custom_fonts:list', kwargs={
-            'organizer': self.request.organizer.slug,
+            'organizer': self.organizer.slug,
         })
 
     def post(self, request, *args, **kwargs):
