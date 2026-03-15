@@ -4,7 +4,7 @@ from django.utils.translation import gettext_lazy as _
 from django import forms
 from pretix.base.signals import register_ticket_outputs
 from pretix.control.signals import nav_organizer, nav_event
-from pretix.presale.signals import html_head, sass_variables
+from pretix.presale.signals import html_head
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import logging
@@ -115,6 +115,8 @@ def register_fonts_on_ticket_output(sender, **kwargs):
             font = CustomFont.objects.get(pk=shop_font_id)
             # Wir setzen die 'font_family' Einstellung von Pretix auf den Namen unserer Schrift
             # Das sorgt dafür, dass Pretix im SASS die Variable $font-family auf diesen Namen setzt.
+            # In neueren Pretix-Versionen ist dies der bevorzugte Weg, da das SASS-Signal 
+            # (sass_variables) in einigen Umgebungen (z.B. standalone:stable) Probleme bereiten kann.
             sender.settings.set('font_family', font.name)
         except CustomFont.DoesNotExist:
             pass
@@ -141,22 +143,26 @@ def html_head_handler(sender, request, **kwargs):
             src: url('{font_url}');
         }}
         """
+
+    # Falls eine Shop-Schrift gewählt wurde, wenden wir sie hier direkt per CSS an,
+    # falls die SASS-Kompilierung das 'font_family' Setting nicht sofort übernimmt
+    # oder sass_variables nicht verfügbar ist.
+    shop_font_id = sender.settings.get('custom_font_shop_id')
+    if shop_font_id:
+        try:
+            shop_font = CustomFont.objects.get(pk=shop_font_id)
+            css += f"""
+            body {{
+                font-family: '{shop_font.name}', sans-serif !important;
+            }}
+            """
+        except CustomFont.DoesNotExist:
+            pass
+
     css += "</style>"
     return css
 
 
-@receiver(sass_variables, dispatch_uid="pretix_custom_fonts_sass_variables")
-def sass_variables_handler(sender, **kwargs):
-    # Falls eine Custom Font für den Shop gewählt wurde, stellen wir sicher, dass sie im SASS ankommt.
-    # Das ist redundant, wenn 'font_family' bereits gesetzt ist, aber sicherer.
-    font_id = sender.settings.get('custom_font_shop_id')
-    if font_id:
-        from .models import CustomFont
-        try:
-            font = CustomFont.objects.get(pk=font_id)
-            return {
-                'font-family': f"'{font.name}'"
-            }
-        except CustomFont.DoesNotExist:
-            pass
-    return {}
+# Der Hook 'sass_variables' wird entfernt, da er in pretix/standalone:stable
+# einen ImportError verursachen kann. Wir setzen stattdessen auf das 'font_family'
+# Setting und direktes CSS via 'html_head'.
