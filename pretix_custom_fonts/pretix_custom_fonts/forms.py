@@ -43,6 +43,12 @@ class EventFontSettingsForm(forms.Form):
         label=_("Custom Font for Invoices"),
         help_text=_("Choose a custom font to be used for invoices of this event.")
     )
+    shop_font = forms.ModelChoiceField(
+        queryset=CustomFont.objects.none(),
+        required=False,
+        label=_("Custom Font for Shop (Alternative)"),
+        help_text=_("If selecting the font in the 'Shop Design' section does not work, you can select it here as an alternative.")
+    )
 
     def __init__(self, *args, **kwargs):
         event = kwargs.pop('event')
@@ -51,3 +57,5 @@ class EventFontSettingsForm(forms.Form):
         self.fields['default_font'].initial = event.settings.get('custom_font_id')
         self.fields['invoice_font'].queryset = CustomFont.objects.filter(organizer=event.organizer)
         self.fields['invoice_font'].initial = event.settings.get('custom_font_invoice_id')
+        self.fields['shop_font'].queryset = CustomFont.objects.filter(organizer=event.organizer)
+        self.fields['shop_font'].initial = event.settings.get('custom_font_shop_id')

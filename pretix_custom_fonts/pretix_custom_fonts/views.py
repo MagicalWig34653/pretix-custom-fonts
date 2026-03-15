@@ -101,6 +101,7 @@ class EventFontSettingsView(EventPermissionMixin, FormView):
     def form_valid(self, form):
         self.event.settings.set('custom_font_id', form.cleaned_data['default_font'].pk if form.cleaned_data['default_font'] else None)
         self.event.settings.set('custom_font_invoice_id', form.cleaned_data['invoice_font'].pk if form.cleaned_data['invoice_font'] else None)
+        self.event.settings.set('custom_font_shop_id', form.cleaned_data['shop_font'].pk if form.cleaned_data['shop_font'] else None)
         messages.success(self.request, _('Your settings have been saved.'))
         return super().form_valid(form)
 

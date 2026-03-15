@@ -1,8 +1,10 @@
 from django.dispatch import receiver
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
-from pretix.base.signals import register_ticket_outputs
-from pretix.control.signals import nav_organizer, nav_event
+from django import forms
+from pretix.base.signals import register_ticket_outputs, event_copy_data
+from pretix.control.signals import nav_organizer, nav_event, event_settings_widget_kwargs
+from pretix.presale.signals import html_head, sass_variables
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import logging
@@ -100,4 +102,73 @@ def register_fonts_on_ticket_output(sender, **kwargs):
         except CustomFont.DoesNotExist:
             pass
 
+    # Shop Design Font Handling
+    shop_font_id = sender.settings.get('custom_font_shop_id')
+    if shop_font_id:
+        from .models import CustomFont
+        try:
+            font = CustomFont.objects.get(pk=shop_font_id)
+            # Wir setzen die 'font_family' Einstellung von Pretix auf den Namen unserer Schrift
+            # Das sorgt dafür, dass Pretix im SASS die Variable $font-family auf diesen Namen setzt.
+            sender.settings.set('font_family', font.name)
+        except CustomFont.DoesNotExist:
+            pass
+
     return []
+
+
+@receiver(event_settings_widget_kwargs, dispatch_uid="pretix_custom_fonts_settings_widget_kwargs")
+def event_settings_widget_kwargs_handler(sender, field, request, **kwargs):
+    if field.name == 'font_family':
+        from .models import CustomFont
+        custom_fonts = CustomFont.objects.filter(organizer=sender.organizer)
+        if custom_fonts.exists():
+            # Wir erweitern die Choices des bestehenden font_family Feldes
+            if not isinstance(field.widget, forms.Select):
+                return {}
+
+            new_choices = list(field.choices)
+            for font in custom_fonts:
+                new_choices.append((font.name, font.name))
+
+            return {'choices': new_choices}
+    return {}
+
+
+@receiver(html_head, dispatch_uid="pretix_custom_fonts_html_head")
+def html_head_handler(sender, request, **kwargs):
+    # Wir binden die @font-face Definitionen im Frontend ein, damit die Custom Fonts gerendert werden
+    from .models import CustomFont
+    fonts = CustomFont.objects.filter(organizer=sender.organizer)
+    if not fonts.exists():
+        return ""
+
+    css = "<style>"
+    for font in fonts:
+        # Wir müssen sicherstellen, dass die URL absolut oder relativ zum Root ist und korrekt funktioniert
+        font_url = font.font_file.url
+        css += f"""
+        @font-face {{
+            font-family: '{font.name}';
+            src: url('{font_url}');
+        }}
+        """
+    css += "</style>"
+    return css
+
+
+@receiver(sass_variables, dispatch_uid="pretix_custom_fonts_sass_variables")
+def sass_variables_handler(sender, **kwargs):
+    # Falls eine Custom Font für den Shop gewählt wurde, stellen wir sicher, dass sie im SASS ankommt.
+    # Das ist redundant, wenn 'font_family' bereits gesetzt ist, aber sicherer.
+    font_id = sender.settings.get('custom_font_shop_id')
+    if font_id:
+        from .models import CustomFont
+        try:
+            font = CustomFont.objects.get(pk=font_id)
+            return {
+                'font-family': f"'{font.name}'"
+            }
+        except CustomFont.DoesNotExist:
+            pass
+    return {}
