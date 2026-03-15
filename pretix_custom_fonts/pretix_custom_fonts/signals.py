@@ -2,8 +2,8 @@ from django.dispatch import receiver
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django import forms
-from pretix.base.signals import register_ticket_outputs, event_copy_data
-from pretix.control.signals import nav_organizer, nav_event, event_settings_widget_kwargs
+from pretix.base.signals import register_ticket_outputs
+from pretix.control.signals import nav_organizer, nav_event
 from pretix.presale.signals import html_head, sass_variables
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -74,6 +74,11 @@ def register_fonts_on_ticket_output(sender, **kwargs):
     # sender is the event
     register_custom_fonts(sender)
 
+    # In dieser Pretix-Version (standalone:stable) existiert der Hook 'event_settings_widget_kwargs'
+    # nicht zuverlässig. Deshalb fügen wir unsere Schriften NICHT in das globale
+    # 'font_family'-Feld unter Shop-Design ein. Stattdessen nutzt das Plugin seine
+    # eigene Einstellungsseite.
+
     # Wir setzen die gewählte Schriftart in den Settings für das Ticket-Rendering,
     # falls eine ausgewählt wurde.
     font_id = sender.settings.get('custom_font_id')
@@ -116,23 +121,6 @@ def register_fonts_on_ticket_output(sender, **kwargs):
 
     return []
 
-
-@receiver(event_settings_widget_kwargs, dispatch_uid="pretix_custom_fonts_settings_widget_kwargs")
-def event_settings_widget_kwargs_handler(sender, field, request, **kwargs):
-    if field.name == 'font_family':
-        from .models import CustomFont
-        custom_fonts = CustomFont.objects.filter(organizer=sender.organizer)
-        if custom_fonts.exists():
-            # Wir erweitern die Choices des bestehenden font_family Feldes
-            if not isinstance(field.widget, forms.Select):
-                return {}
-
-            new_choices = list(field.choices)
-            for font in custom_fonts:
-                new_choices.append((font.name, font.name))
-
-            return {'choices': new_choices}
-    return {}
 
 
 @receiver(html_head, dispatch_uid="pretix_custom_fonts_html_head")
