@@ -39,7 +39,25 @@ Die Schriftarten werden über den `register_ticket_outputs` Signal-Hook registri
 Um diese Schriftarten im grafischen Ticket-Designer von Pretix auszuwählen, müsste das Ticket-Designer-Plugin selbst erweitert werden (dieses Plugin bietet aktuell nur eine begrenzte Liste an Standardschriftarten an). Dieses Plugin stellt jedoch die infrastrukturelle Basis bereit, damit die Schriftarten vom System erkannt und gerendert werden können, wenn sie in Custom-Implementierungen oder manuell in PDF-Templates referenziert werden.
 
 ### Speicherort
-Schriftarten werden im `MEDIA_ROOT` unter `pub/<organizer>/fonts/` gespeichert.
+Schriftarten werden im `MEDIA_ROOT` unter `pub/<organizer>/fonts/` gespeichert. In einer Docker-Umgebung sollte sichergestellt sein, dass das Medienverzeichnis auf einem persistenten Volume liegt (standardmäßig `/data` im Pretix-Image).
+
+## Docker-Integration
+
+Um das Plugin in einer Docker-Umgebung zu nutzen, können Sie das mitgelieferte `Dockerfile` verwenden, um ein eigenes Pretix-Image zu bauen, das das Plugin bereits enthält.
+
+### Build
+```bash
+docker build -t my-pretix-with-fonts .
+```
+
+### Docker Compose Snippet
+```yaml
+  pretix:
+    image: my-pretix-with-fonts
+    volumes:
+      - /path/to/data:/data
+    # ... weitere Konfiguration
+```
 
 ## Lizenz
 Apache License 2.0
