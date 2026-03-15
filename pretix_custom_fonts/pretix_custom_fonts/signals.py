@@ -10,7 +10,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 @receiver(nav_organizer, dispatch_uid="pretix_custom_fonts_nav")
-def control_nav_organizer(sender, request, organizer, **kwargs):
+def control_nav_organizer(sender, request, **kwargs):
+    organizer = request.organizer
     url = reverse('plugins:pretix_custom_fonts:list', kwargs={
         'organizer': organizer.slug,
     })
@@ -23,15 +24,14 @@ def control_nav_organizer(sender, request, organizer, **kwargs):
             'url': url,
             'active': (request.resolver_match.url_name.startswith('plugins:pretix_custom_fonts:')),
             'icon': 'font',
-            'parent': reverse('control:organizer.settings', kwargs={
-                'organizer': organizer.slug,
-            }),
         }
     ]
 
 
 @receiver(nav_event, dispatch_uid="pretix_custom_fonts_nav_event")
-def control_nav_event(sender, request, organizer, event, **kwargs):
+def control_nav_event(sender, request, **kwargs):
+    organizer = request.organizer
+    event = request.event
     url = reverse('plugins:pretix_custom_fonts:event_settings', kwargs={
         'organizer': organizer.slug,
         'event': event.slug,
