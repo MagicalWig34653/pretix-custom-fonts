@@ -5,7 +5,7 @@ FROM pretix/standalone:stable
 
 # We copy the plugin code into the container
 # Assuming the Dockerfile is in the project root (above pretix_custom_fonts directory)
-COPY ./pretix_custom_fonts /pretix-custom-fonts
+COPY ./pretix_custom_fonts /build/pretix_custom_fonts
 
 
 # Copy into a writable temp dir and install from there
