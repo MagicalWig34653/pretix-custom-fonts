@@ -10,7 +10,7 @@
             <button type="submit" class="btn btn-danger btn-save">
                 {% trans "Delete" %}
             </button>
-            <a href="{% url 'plugins:pretix_custom_fonts:list' organizer=request.organizer.slug %}" class="btn btn-default">
+            <a href="{% url 'plugins:pretix_custom_fonts:list' organizer=organizer.slug %}" class="btn btn-default">
                 {% trans "Cancel" %}
             </a>
         </div>

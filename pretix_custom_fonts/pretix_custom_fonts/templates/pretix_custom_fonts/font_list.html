@@ -24,7 +24,7 @@
                     <td><strong>{{ f.name }}</strong></td>
                     <td>{{ f.font_file.name }}</td>
                     <td class="text-right">
-                        <a href="{% url 'plugins:pretix_custom_fonts:delete' organizer=request.organizer.slug pk=f.pk %}"
+                        <a href="{% url 'plugins:pretix_custom_fonts:delete' organizer=organizer.slug pk=f.pk %}"
                            class="btn btn-danger btn-sm"><i class="fa fa-trash"></i></a>
                     </td>
                 </tr>
@@ -36,7 +36,7 @@
             </tbody>
         </table>
     </div>
-    <a href="{% url 'plugins:pretix_custom_fonts:add' organizer=request.organizer.slug %}" class="btn btn-default">
+    <a href="{% url 'plugins:pretix_custom_fonts:add' organizer=organizer.slug %}" class="btn btn-default">
         <i class="fa fa-plus"></i> {% trans "Upload new font" %}
     </a>
 {% endblock %}
