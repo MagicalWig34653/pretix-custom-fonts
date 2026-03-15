@@ -38,11 +38,12 @@ def handle_register_fonts(sender, **kwargs):
     ret = {}
     
     # Identify potential static base directories for materialization
-    # We prefer the one mentioned in the error message, followed by STATIC_ROOT
-    static_dirs = ['/pretix/src/pretix/static']
-    if hasattr(settings, 'STATIC_ROOT') and settings.STATIC_ROOT:
-        static_dirs.append(settings.STATIC_ROOT)
-    static_dirs.append(os.path.join(os.path.dirname(__file__), 'static'))
+    static_dirs = [d for d in [
+        getattr(settings, 'STATIC_ROOT', None),
+        '/pretix/src/pretix/static',
+        '/data/static',
+        os.path.join(os.path.dirname(__file__), 'static'),
+    ] if d]
 
     for font in fonts:
         if font.name not in ret:
@@ -90,26 +91,33 @@ def handle_register_fonts(sender, **kwargs):
         font_data = {
             'truetype': rel_path if materialized else source_path,
         }
-        
-        # Add woff/woff2 as a bridge for web visibility
-        # To avoid the 'Missing staticfiles manifest entry' error, bypass manifest 
-        # lookup by providing a full absolute URL if SITE_URL is available.
-        try:
-            site_url = getattr(settings, 'SITE_URL', '').rstrip('/')
-            if site_url:
-                # Direct absolute URL to the media file bypasses static() manifest lookup
-                url = site_url + font.font_file.url
-            else:
-                # Fallback: Use the materialized static path if available
-                if materialized:
-                    url = f"{settings.STATIC_URL}{rel_path}"
-                else:
-                    url = font.font_file.url
-                
-            font_data['woff'] = url
-            font_data['woff2'] = url
-        except:
-            pass
+
+        # Bridge for ManifestStaticFilesStorage:
+        # To avoid the 'Missing staticfiles manifest entry' error in theme.css,
+        # we inject the path into the in-memory manifest at runtime.
+        from django.contrib.staticfiles.storage import staticfiles_storage
+        if materialized:
+            try:
+                if hasattr(staticfiles_storage, 'hashed_files'):
+                    if rel_path not in staticfiles_storage.hashed_files:
+                        staticfiles_storage.hashed_files[rel_path] = rel_path
+            except:
+                pass
+
+        # For webfonts in theme.css, we return the relative static path if materialized.
+        # Since we injected it into the manifest above, static(rel_path) will now work.
+        if materialized:
+            font_data['woff'] = rel_path
+            font_data['woff2'] = rel_path
+        else:
+            # Fallback to absolute URLs to bypass manifest lookup if materialization failed
+            try:
+                site_url = getattr(settings, 'SITE_URL', '').rstrip('/')
+                url = site_url + font.font_file.url if site_url else font.font_file.url
+                font_data['woff'] = url
+                font_data['woff2'] = url
+            except:
+                pass
             
         ret[font.name][font.style] = font_data
 
