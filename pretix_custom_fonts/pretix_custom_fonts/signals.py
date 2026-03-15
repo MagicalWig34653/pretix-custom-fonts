@@ -1,7 +1,7 @@
 from django.dispatch import receiver
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
-from pretix.base.signals import register_payment_providers, register_ticket_outputs, layout_text_render, invoice_render
+from pretix.base.signals import register_ticket_outputs
 from pretix.control.signals import nav_organizer, nav_event
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -67,45 +67,9 @@ def control_nav_event(sender, request, **kwargs):
         }
     ]
 
-@receiver(layout_text_render, dispatch_uid="pretix_custom_fonts_layout_text_render")
-def on_layout_text_render(sender, request, **kwargs):
-    # sender is the event
-    register_custom_fonts(sender)
-
-    font_id = sender.settings.get('custom_font_id')
-    if font_id:
-        from .models import CustomFont
-        try:
-            font = CustomFont.objects.get(pk=font_id)
-            # Registering the font is already done by register_custom_fonts(sender)
-            # We don't need to return anything here, but the font is now available in ReportLab
-            pass
-        except CustomFont.DoesNotExist:
-            pass
-    return []
-
-
-@receiver(invoice_render, dispatch_uid="pretix_custom_fonts_invoice_render")
-def on_invoice_render(sender, **kwargs):
-    # sender is the event
-    register_custom_fonts(sender)
-
-    font_id = sender.settings.get('custom_font_invoice_id')
-    if font_id:
-        from .models import CustomFont
-        try:
-            font = CustomFont.objects.get(pk=font_id)
-            # We set the font family for invoices
-            sender.settings.set('invoice_renderer_pdf_fontfamily', font.name)
-            logger.info(f"Set invoice font family to: {font.name}")
-        except CustomFont.DoesNotExist:
-            pass
-    return []
-
-
 @receiver(register_ticket_outputs, dispatch_uid="pretix_custom_fonts_register_fonts")
 def register_fonts_on_ticket_output(sender, **kwargs):
-    # sender ist hier das Event
+    # sender is the event
     register_custom_fonts(sender)
 
     # Wir setzen die gewählte Schriftart in den Settings für das Ticket-Rendering,
@@ -118,6 +82,21 @@ def register_fonts_on_ticket_output(sender, **kwargs):
             # Wir setzen die Font-Family für Ticket-Outputs, die dieses Setting respektieren
             sender.settings.set('ticket_output_pdf_font_family', font.name)
             logger.info(f"Set ticket font family to: {font.name}")
+        except CustomFont.DoesNotExist:
+            pass
+
+    # Inkompatible Hooks dokumentieren:
+    # layout_text_render existiert in dieser Pretix-Version nicht.
+    # Wir verlassen uns stattdessen auf die Registrierung via register_ticket_outputs.
+
+    # Invoice Font Handling
+    invoice_font_id = sender.settings.get('custom_font_invoice_id')
+    if invoice_font_id:
+        from .models import CustomFont
+        try:
+            font = CustomFont.objects.get(pk=invoice_font_id)
+            sender.settings.set('invoice_renderer_pdf_fontfamily', font.name)
+            logger.info(f"Set invoice font family to: {font.name}")
         except CustomFont.DoesNotExist:
             pass
 
