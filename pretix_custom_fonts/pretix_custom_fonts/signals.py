@@ -3,6 +3,8 @@ from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from pretix.control.signals import nav_organizer
 from pretix.presale.signals import html_head
+from pretix.base.signals import register_fonts as register_fonts_base
+from pretix.base.models import Organizer, Event
 import logging
 import os
 
@@ -31,14 +33,18 @@ def control_nav_organizer(sender, request, **kwargs):
 @receiver(html_head, dispatch_uid="pretix_custom_fonts_html_head")
 def html_head_handler(sender, request, **kwargs):
     # Wir binden die @font-face Definitionen im Frontend ein, damit die Custom Fonts gerendert werden
+    # Dies ist ergänzend zur Registrierung, falls der Benutzer die Fonts direkt via CSS ansprechen möchte.
     from .models import CustomFont
+    
+    if not hasattr(sender, 'organizer'):
+        return ""
+        
     fonts = CustomFont.objects.filter(organizer=sender.organizer)
     if not fonts.exists():
         return ""
 
     css = "<style>"
     for font in fonts:
-        # Wir müssen sicherstellen, dass die URL absolut oder relativ zum Root ist und korrekt funktioniert
         font_url = font.font_file.url
         css += f"""
         @font-face {{
@@ -46,6 +52,7 @@ def html_head_handler(sender, request, **kwargs):
             src: url('{font_url}');
             font-weight: {'bold' if 'bold' in font.style else 'normal'};
             font-style: {'italic' if 'italic' in font.style else 'normal'};
+            font-display: swap;
         }}
         """
 
@@ -53,43 +60,76 @@ def html_head_handler(sender, request, **kwargs):
     return css
 
 
-def register_fonts(sender, **kwargs):
-    # Dieser Receiver registriert Fonts für pretix.plugins.ticketoutputpdf
+def handle_register_fonts(sender, **kwargs):
     from .models import CustomFont
-    # Wir laden hier alle Fonts des Organizers für das Event
-    # Hinweis: Da dieser Signal-Receiver global für das Event aufgerufen wird,
-    # geben wir die für diesen Organizer verfügbaren Fonts zurück.
-    if not hasattr(sender, 'organizer'):
+    
+    # Ermittlung des Organizers basierend auf dem Sender
+    organizer = None
+    if isinstance(sender, Organizer):
+        organizer = sender
+    elif isinstance(sender, Event):
+        organizer = sender.organizer
+    elif hasattr(sender, 'organizer'):
+        organizer = sender.organizer
+    
+    if not organizer:
         return {}
 
-    fonts = CustomFont.objects.filter(organizer=sender.organizer)
+    fonts = CustomFont.objects.filter(organizer=organizer)
     ret = {}
     for font in fonts:
         if font.name not in ret:
             ret[font.name] = {}
         
-        path = font.font_file.path
-        # Pretix erwartet ein Mapping von Font-Namen auf Varianten.
-        # Ein Font kann Varianten wie 'regular', 'bold', 'italic', 'bolditalic' haben.
-        ret[font.name][font.style] = {
-            'truetype': path,
-            # 'woff', 'woff2' könnten hier ebenfalls stehen, falls vorhanden.
-            # Pretix nutzt 'truetype' für PDF-Generierung (ReportLab).
-        }
-        # 'sample' sollte auf der Ebene des Font-Namens liegen, nicht pro Variante
-        # Wir nehmen einfach die Datei der ersten Variante als Sample.
-        if 'sample' not in ret[font.name]:
-            ret[font.name]['sample'] = path
+        # Für pretix müssen wir den Pfad zur Datei im Dateisystem angeben
+        # Dies funktioniert sowohl für ReportLab (PDF) als auch für die SASS-Kompilierung (Shop)
+        try:
+            path = font.font_file.path
+            if not os.path.exists(path):
+                continue
+        except Exception:
+            continue
+            
+        ret[font.name][font.style] = path
 
-    # Wir filtern Fonts heraus, die kein 'regular' haben, da Pretix das meist voraussetzt
-    return {k: v for k, v in ret.items() if 'regular' in v}
+    # Wir filtern Fonts heraus, die kein 'regular' haben, da pretix das meist voraussetzt
+    # Außerdem stellen wir sicher, dass das Format den Erwartungen entspricht
+    final_ret = {}
+    for font_name, variants in ret.items():
+        if 'regular' in variants:
+            # pretix erwartet Varianten-Keys wie 'regular', 'bold', 'italic', 'bolditalic'
+            # direkt mit dem Pfad als Wert (oder ein Dict mit 'truetype' bei PDF-Plugin)
+            final_ret[font_name] = variants
+
+    return final_ret
 
 
-# Wir versuchen den Import des Signals. Falls das Ticket-Output-Plugin nicht aktiv ist,
+@receiver(register_fonts_base, dispatch_uid="pretix_custom_fonts_register_fonts_base")
+def register_fonts_base_handler(sender, **kwargs):
+    return handle_register_fonts(sender, **kwargs)
+
+
+# Wir versuchen den Import des PDF-Signals. Falls das Plugin nicht aktiv ist,
 # wird das Signal nicht gefunden.
 try:
     from pretix.plugins.ticketoutputpdf.signals import register_fonts as register_fonts_signal
-    register_fonts = receiver(register_fonts_signal, dispatch_uid="pretix_custom_fonts_register_fonts")(register_fonts)
+    
+    @receiver(register_fonts_signal, dispatch_uid="pretix_custom_fonts_register_fonts_pdf")
+    def register_fonts_pdf_handler(sender, **kwargs):
+        # Das PDF-Plugin erwartet ggf. ein leicht anderes Format (mit 'truetype' key)
+        # aber meistens funktioniert auch das flache Format. 
+        # Zur Sicherheit geben wir hier das Format zurück, das pretix-fontpack-free nutzt.
+        res = handle_register_fonts(sender, **kwargs)
+        pdf_res = {}
+        for font_name, variants in res.items():
+            pdf_res[font_name] = {}
+            for style, path in variants.items():
+                pdf_res[font_name][style] = {
+                    'truetype': path
+                }
+            # 'sample' wird vom PDF-Plugin für die Vorschau genutzt
+            if 'regular' in variants:
+                pdf_res[font_name]['sample'] = variants['regular']
+        return pdf_res
 except ImportError:
-    # Falls das Plugin nicht installiert ist, machen wir nichts.
     pass
