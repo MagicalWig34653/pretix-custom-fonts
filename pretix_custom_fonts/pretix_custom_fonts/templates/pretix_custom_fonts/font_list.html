@@ -1,0 +1,42 @@
+{% extends "pretixcontrol/organizers/base.html" %}
+{% load i18n %}
+{% load bootstrap3 %}
+{% block inner %}
+    <h1>{% trans "Custom Fonts" %}</h1>
+    <p>
+        {% blocktrans %}
+            Here you can manage custom fonts that can be used for PDF ticket generation.
+            Only TTF and OTF files are supported.
+        {% endblocktrans %}
+    </p>
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+            <tr>
+                <th>{% trans "Name" %}</th>
+                <th>{% trans "File" %}</th>
+                <th class="action-column"></th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for f in fonts %}
+                <tr>
+                    <td><strong>{{ f.name }}</strong></td>
+                    <td>{{ f.font_file.name }}</td>
+                    <td class="text-right">
+                        <a href="{% url 'plugins:pretix_custom_fonts:delete' organizer=request.organizer.slug pk=f.pk %}"
+                           class="btn btn-danger btn-sm"><i class="fa fa-trash"></i></a>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="3" class="text-center"><em>{% trans "No custom fonts uploaded yet." %}</em></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <a href="{% url 'plugins:pretix_custom_fonts:add' organizer=request.organizer.slug %}" class="btn btn-default">
+        <i class="fa fa-plus"></i> {% trans "Upload new font" %}
+    </a>
+{% endblock %}

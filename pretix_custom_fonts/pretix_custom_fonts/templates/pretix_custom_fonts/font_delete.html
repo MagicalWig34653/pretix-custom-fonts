@@ -1,0 +1,18 @@
+{% extends "pretixcontrol/organizers/base.html" %}
+{% load i18n %}
+{% load bootstrap3 %}
+{% block inner %}
+    <h1>{% trans "Delete font" %}</h1>
+    <form action="" method="post" class="form-horizontal">
+        {% csrf_token %}
+        <p>{% blocktrans with name=object.name %}Are you sure you want to delete the font <strong>{{ name }}</strong>?{% endblocktrans %}</p>
+        <div class="form-group submit-group">
+            <button type="submit" class="btn btn-danger btn-save">
+                {% trans "Delete" %}
+            </button>
+            <a href="{% url 'plugins:pretix_custom_fonts:list' organizer=request.organizer.slug %}" class="btn btn-default">
+                {% trans "Cancel" %}
+            </a>
+        </div>
+    </form>
+{% endblock %}
