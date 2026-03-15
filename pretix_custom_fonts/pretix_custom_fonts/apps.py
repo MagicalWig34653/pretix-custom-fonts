@@ -15,7 +15,7 @@ class PluginApp(PluginConfig):
         name = _('Custom Fonts')
         author = 'Junie'
         description = _('Manage custom fonts (TTF/OTF) for your event PDFs.')
-        visible = True
+        visible = False
         version = '1.0.0'
         category = 'FEATURE'
         compatibility = "pretix>=4.0.0"

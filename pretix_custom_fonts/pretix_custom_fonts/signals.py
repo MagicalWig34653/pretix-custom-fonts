@@ -1,8 +1,9 @@
 from django.dispatch import receiver
 from django.urls import reverse
+from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
-from pretix.control.signals import nav_organizer
-from pretix.presale.signals import html_head
+from pretix.presale.signals import html_head as html_head_presale
+from pretix.control.signals import html_head as html_head_control, nav_organizer
 from pretix.base.models import Organizer, Event
 import logging
 import os
@@ -40,16 +41,24 @@ def control_nav_organizer(sender, request, **kwargs):
     ]
 
 
-@receiver(html_head, dispatch_uid="pretix_custom_fonts_html_head")
+@receiver(html_head_presale, dispatch_uid="pretix_custom_fonts_html_head_presale")
+@receiver(html_head_control, dispatch_uid="pretix_custom_fonts_html_head_control")
 def html_head_handler(sender, request, **kwargs):
-    # Wir binden die @font-face Definitionen im Frontend ein, damit die Custom Fonts gerendert werden
-    # Dies ist ergänzend zur Registrierung, falls der Benutzer die Fonts direkt via CSS ansprechen möchte.
+    # Wir binden die @font-face Definitionen ein, damit die Custom Fonts gerendert werden
     from .models import CustomFont
     
-    if not hasattr(sender, 'organizer'):
+    organizer = None
+    if hasattr(sender, 'organizer'):
+        organizer = sender.organizer
+    elif hasattr(request, 'event') and request.event:
+        organizer = request.event.organizer
+    elif hasattr(request, 'organizer') and request.organizer:
+        organizer = request.organizer
+        
+    if not organizer:
         return ""
         
-    fonts = CustomFont.objects.filter(organizer=sender.organizer)
+    fonts = CustomFont.objects.filter(organizer=organizer)
     if not fonts.exists():
         return ""
 
@@ -101,8 +110,15 @@ def handle_register_fonts(sender, **kwargs):
         # Wir verwenden das Format, das sowohl vom PDF-Plugin als auch
         # vom globalen Font-System (ab Pretix 4.9) verstanden wird.
         ret[font.name][font.style] = {
-            'truetype': path
+            'truetype': path,
         }
+        # Web-URLs als Fallback für das Shop-Design hinzufügen
+        try:
+            url = font.font_file.url
+            ret[font.name][font.style]['woff'] = url
+            ret[font.name][font.style]['woff2'] = url
+        except:
+            pass
 
     # Wir filtern Fonts heraus, die kein 'regular' haben
     final_ret = {}
@@ -110,7 +126,10 @@ def handle_register_fonts(sender, **kwargs):
         if 'regular' in variants:
             final_ret[font_name] = variants
             # 'sample' wird für die Vorschau in der UI benötigt
-            final_ret[font_name]['sample'] = variants['regular']['truetype']
+            final_ret[font_name]['sample'] = mark_safe(
+                'The quick brown fox jumps over the lazy dog.<br>'
+                'Franz jagt im komplett verwahrlosten Taxi quer durch Bayern.'
+            )
 
     return final_ret
 
