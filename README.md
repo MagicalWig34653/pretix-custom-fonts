@@ -45,15 +45,10 @@ Schriftarten werden im `MEDIA_ROOT` unter `pub/<organizer>/fonts/` gespeichert. 
 
 Um das Plugin in einer Docker-Umgebung zu nutzen, können Sie das mitgelieferte `Dockerfile` verwenden, um ein eigenes Pretix-Image zu bauen, das das Plugin bereits enthält.
 
-### Build
-```bash
-docker build -t my-pretix-with-fonts .
-```
-
 ### Docker Compose Snippet
 ```yaml
   pretix:
-    image: my-pretix-with-fonts
+    image: ghcr.io/magicalwig34653/pretix-modify-custom-fonts:stable
     volumes:
       - /path/to/data:/data
     # ... weitere Konfiguration
