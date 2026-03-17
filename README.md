@@ -1,58 +1,69 @@
 # Pretix Custom Fonts Plugin
 
-Dieses Plugin ermöglicht es, eigene Schriftarten (TTF/OTF) in Pretix hochzuladen und für PDF-Ausgaben (z.B. Tickets) zu verwenden.
+Dieses Plugin erweitert Pretix um eine Organizer-weite Verwaltung eigener Schriftarten und stellt diese für PDF- und Theme-Nutzung bereit.
 
-## Features
+## Kompatibilität
 
-- **Organizer-weite Verwaltung**: Schriftarten werden auf Organizer-Ebene hochgeladen und verwaltet.
-- **Sicherer Upload**: Validierung von Dateitypen (.ttf, .otf).
-- **PDF-Integration**: Automatische Registrierung der Schriftarten in ReportLab (Pretix PDF-Engine), sobald ein Ticket generiert wird.
-- **Nahtlose UI**: Integration in das Pretix-Backend unter Organizer -> Eigene Schriftarten.
+- Pretix `>= 4.0.0`
+- Schriftdateien: `.ttf` und `.otf`
 
-## Installation
+## Funktionsumfang
 
-1. Klonen Sie dieses Repository in Ihr Pretix-Plugin-Verzeichnis oder installieren Sie es via pip:
-   ```bash
-   pip install .
-   ```
+- Organizer-weite Font-Verwaltung im Control-Interface (`Custom Fonts`)
+- Upload, Bearbeiten und Löschen von Schriftarten pro Font-Familie und Stil
+- Mehrere Stil-Varianten pro Familie:
+  `regular`, `italic`, `bold`, `bolditalic`, `thin`, `thinitalic`, `extralight`, `light`, `medium`, `italicbold`, `black`
+- Eindeutigkeit je Organizer/Familie/Stil (keine Dubletten)
+- Automatische Zuordnung auf Pretix-Slots (`regular`, `bold`, `italic`, `bolditalic`) über Prioritätsregeln
+- Kennzeichnung, ob eine Familie vollständig nutzbar ist (mindestens `regular`)
+- PDF-Kompatibilitätsprüfung:
+  OTF-Dateien mit PostScript/CFF-Outlines (`OTTO`-Header) werden für PDF als nicht kompatibel markiert
+- Bereitstellung für Webfonts/Themes über `register_fonts` inkl. statischer Materialisierung
 
-2. Führen Sie die Datenbank-Migrationen aus:
-   ```bash
-   python -m pretix migrate
-   ```
+## Installation (lokal aus diesem Repository)
 
-3. Starten Sie Ihren Pretix-Server neu.
+Die Python-Paketquelle liegt in `pretix_custom_fonts/`:
 
-## Nutzung
-
-1. Gehen Sie im Pretix-Backend zu Ihrem **Organizer**.
-2. Klicken Sie in der linken Navigation auf **Eigene Schriftarten**.
-3. Laden Sie eine .ttf oder .otf Datei hoch und geben Sie ihr einen Namen.
-4. Die Schriftart ist nun unter dem angegebenen Namen in ReportLab-basierten Plugins (wie dem Ticket-Designer) verfügbar.
-
-## Technische Details & Grenzen
-
-### PDF-Integration
-Die Schriftarten werden über den `register_ticket_outputs` Signal-Hook registriert. Dies stellt sicher, dass die Fonts geladen sind, bevor die PDF-Generierung beginnt. In ReportLab werden sie über `pdfmetrics.registerFont` verfügbar gemacht.
-
-### Ticket-Designer
-Um diese Schriftarten im grafischen Ticket-Designer von Pretix auszuwählen, müsste das Ticket-Designer-Plugin selbst erweitert werden (dieses Plugin bietet aktuell nur eine begrenzte Liste an Standardschriftarten an). Dieses Plugin stellt jedoch die infrastrukturelle Basis bereit, damit die Schriftarten vom System erkannt und gerendert werden können, wenn sie in Custom-Implementierungen oder manuell in PDF-Templates referenziert werden.
-
-### Speicherort
-Schriftarten werden im `MEDIA_ROOT` unter `pub/<organizer>/fonts/` gespeichert. In einer Docker-Umgebung sollte sichergestellt sein, dass das Medienverzeichnis auf einem persistenten Volume liegt (standardmäßig `/data` im Pretix-Image).
-
-## Docker-Integration
-
-Um das Plugin in einer Docker-Umgebung zu nutzen, können Sie das mitgelieferte `Dockerfile` verwenden, um ein eigenes Pretix-Image zu bauen, das das Plugin bereits enthält.
-
-### Docker Compose Snippet
-```yaml
-  pretix:
-    image: ghcr.io/magicalwig34653/pretix-modify-custom-fonts:stable
-    volumes:
-      - /path/to/data:/data
-    # ... weitere Konfiguration
+```bash
+pip install ./pretix_custom_fonts
+python -m pretix migrate
+python -m pretix rebuild
 ```
 
+Danach den Pretix-Prozess neu starten.
+
+## Nutzung im Pretix-Backend
+
+1. Organizer öffnen
+2. Navigation: `Custom Fonts`
+3. Neue Schrift hochladen (Familienname, Stil, Datei)
+4. Optional weitere Stile derselben Familie hochladen
+5. In der Liste prüfen:
+   - `PDF compatible` (Ja/Nein)
+   - Slot-Mapping auf Pretix-Stile
+   - Familienstatus `Active` oder `Incomplete`
+
+Hinweis: Eine Familie ist erst vollständig nutzbar, wenn ein `regular`-Stil vorhanden ist.
+
+## Technische Hinweise
+
+- Speicherung der Dateien unter: `pub/<organizer>/fonts/<datei>`
+- Hook für Font-Bereitstellung: `pretix.plugins.ticketoutputpdf.signals.register_fonts`
+- Falls möglich, werden Fonts zusätzlich nach `pretix_custom_fonts/fonts/<organizer>/<datei>` in ein Static-Verzeichnis materialisiert
+- Wenn Materialisierung nicht möglich ist, wird auf direkte Medien-URLs zurückgefallen
+
+## Docker
+
+Im Repository ist ein `Dockerfile` enthalten, das auf `pretix/standalone:stable` basiert, das Plugin installiert und anschließend `pretix rebuild` ausführt.
+
+Beispiel:
+
+```bash
+docker build -t pretix-custom-fonts:local .
+```
+
+In der CI wird ein Image nach `ghcr.io/magicalwig34653/pretix-modify-custom-fonts` veröffentlicht (Tags u.a. `latest`, `stable`).
+
 ## Lizenz
+
 Apache License 2.0
