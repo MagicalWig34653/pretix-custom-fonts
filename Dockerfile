@@ -2,6 +2,7 @@ FROM pretix/standalone:stable
 
 USER root
 
+RUN apt update
 RUN apt install -y ghostscript
 
 COPY ./pretix_custom_fonts /build/pretix-custom-fonts
