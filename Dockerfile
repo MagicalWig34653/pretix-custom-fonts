@@ -1,4 +1,4 @@
-FROM pretix/standalone:stable
+FROM pretix/standalone:2026.4.1
 
 USER root
 
@@ -10,7 +10,7 @@ COPY ./pretix_custom_fonts /build/pretix-custom-fonts
 RUN pip3 install --no-cache-dir /build/pretix-custom-fonts
 RUN pip3 install --no-cache-dir pretix-fontpack-free pretix-mandatory-product pretix-passbook pretix-zugferd pretix-event-css-js
 
-RUN usermod -aG pretixuser www-data
+#RUN usermod -aG pretixuser www-data
 USER pretixuser
 
 RUN cd /pretix && python3 -m pretix rebuild
